@@ -293,7 +293,7 @@ class Demo:
                           total_bank_stream_items=self.clients[BANK].call("liststreams", STREAMS[BANK], True)[0]["items"],
                           total_user_stream_items=self.clients[USER].call("liststreams", STREAMS[USER], True)[0]["items"],
                           chains={"bank": BANK, "user": USER}, filter_name=FILTER,
-                          filter_code_sha256=hashlib.sha256((HERE / "bank_filter.js").read_bytes()).hexdigest(),
+                          filter_code_sha256=hashlib.sha256((HERE / "bank_filter.js").read_text(encoding="utf-8").encode("utf-8")).hexdigest(),
                           filter_on_bank_only=True, cross_chain_transport="explicit off-chain helper relay")
             save(offer + "_verification.json", report)
         print(json.dumps(report, indent=2), flush=True)

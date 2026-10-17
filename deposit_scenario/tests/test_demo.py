@@ -2,7 +2,7 @@ import copy
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from demo import Demo, amounts, body, digest, index_records
@@ -208,6 +208,26 @@ class RulesTests(unittest.TestCase):
         helper.accept("DEP001", bonus=True, prompt=prompt)
         self.assertEqual(prompt.call_count, 1)
         self.assertEqual(helper.publish.call_args.args[1]["bonus_amount"], 400)
+
+    @patch("demo.save")
+    @patch("demo.assert_filter_active")
+    @patch("demo.time.sleep")
+    @patch("demo.time.monotonic", side_effect=[0, 1, 2, 3, 4, 5, 6, 6])
+    def test_six_month_timer_makes_forty_percent_bonus_ready_not_completed(self, clock, sleep, active, save):
+        helper, state = self.accepted_fixture()
+        del state[BANK]["MATURITY_REACHED"]
+        del state[USER]["MATURITY_REACHED"]
+        helper.publish = Mock()
+        helper.mature("DEP001")
+        self.assertEqual(sleep.call_count, 6)
+        self.assertTrue(all(call.args == (1,) for call in sleep.call_args_list))
+        payload = helper.publish.call_args.args[1]
+        self.assertEqual(payload["event"], "MATURITY_REACHED")
+        self.assertEqual(payload["status"], "BONUS_READY")
+        self.assertEqual((payload["bonus_amount"], payload["final_amount"]), (400, 1400))
+        self.assertEqual([tick["month"] for tick in payload["simulation"]["ticks"]], [1, 2, 3, 4, 5, 6])
+        self.assertEqual(payload["simulation"]["elapsed_seconds"], 6)
+        self.assertNotIn("COMPLETED", state[BANK])
 
 
 if __name__ == "__main__":

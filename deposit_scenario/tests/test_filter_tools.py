@@ -68,6 +68,14 @@ class UpgradeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "differs"):
             assert_filter_active(bank)
 
+    def test_changed_legacy_code_is_not_disapproved(self):
+        bank = self.bank([FILTER, LEGACY_FILTER])
+        original = bank.call.side_effect
+        bank.call.side_effect = lambda method, *args: "changed legacy code" if method == "getfiltercode" and args[0] == LEGACY_FILTER else original(method, *args)
+        with self.assertRaisesRegex(ValueError, "Legacy deployed code differs"):
+            retire_legacy(bank, "public-bank-address")
+        self.assertFalse(any(call.args[0] == "approvefrom" for call in bank.call.call_args_list))
+
     def test_tests_cover_old_rates_and_correct_forty_percent_arithmetic(self):
         fixtures = {name: (payload, expected) for name, payload, expected in cases()}
         self.assertEqual(fixtures["valid"][0]["bonus_percent"], 40)
