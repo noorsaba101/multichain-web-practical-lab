@@ -7,7 +7,7 @@
 		$upload=@$_FILES['upload'];
 		$upload_file=@$upload['tmp_name'];
 
-		if (strlen($upload_file)) {
+		if (strlen((string)$upload_file)) {
 			$upload_size=filesize($upload_file);
 
 			if ($upload_size>$max_upload_size) {
@@ -37,7 +37,7 @@
 		if (count($keys)<=1) // convert to single key parameter if only one key
 			$keys=$keys[0];
 		
-		if ($_POST['offchain']) // need to separate cases here since MultiChain 1.0 publishfrom API has no 'options' parameter
+		if (!empty($_POST['offchain'])) // need to separate cases here since MultiChain 1.0 publishfrom API has no 'options' parameter
 			$result=multichain('publishfrom', $_POST['from'], $_POST['name'], $keys, $data, 'offchain');
 		else
 			$result=multichain('publishfrom', $_POST['from'], $_POST['name'], $keys, $data);

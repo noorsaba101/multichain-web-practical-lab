@@ -43,7 +43,7 @@
 				'for' => $_POST['stream'],
 				'keys' => preg_split('/\n|\r\n?/', trim($_POST['keys'])),
 				'data' => $data,
-				'options' => $_POST['offchain'] ? 'offchain' : ''
+				'options' => !empty($_POST['offchain']) ? 'offchain' : ''
 			)), 'sign'
 		))) {
 
@@ -59,7 +59,7 @@
 					else
 						output_error_text('Filter code blocked this stream item with the reason: '.$suffix."\n".$teststreamfilter['reason']);
 					
-					if ($_POST['callbacks'])
+					if (!empty($_POST['callbacks']))
 						output_filter_test_callbacks($teststreamfilterraw);
 						
 				} else
@@ -120,7 +120,7 @@
 								<th>Active on</th>
 								<td><?php
 	
-	if (@count($filterkeystreams[$filter['createtxid']])) {
+	if (!empty($filterkeystreams[$filter['createtxid']])) {
 		foreach ($filterkeystreams[$filter['createtxid']] as $streamcreatetxid => $streamname)
 			echo html(strlen($streamname) ? $streamname : $streamcreatetxid).' ';
 
@@ -145,7 +145,7 @@
 						<div class="form-group">
 							<label for="code" class="col-sm-3 control-label">Filter code:</label>
 							<div class="col-sm-9">
-								<textarea class="form-control" style="font-family:monospace;" rows="12" name="code" id="code"><?php if (strlen(@$_POST['code'])) echo html($_POST['code']); else {
+								<textarea class="form-control" style="font-family:monospace;" rows="12" name="code" id="code"><?php if (strlen((string)@$_POST['code'])) echo html($_POST['code']); else {
 
 ?>function filterstreamitem()
 {
@@ -240,7 +240,7 @@
 						<div class="form-group">
 							<label for="name" class="col-sm-3 control-label">Create filter name:</label>
 							<div class="col-sm-9">
-								<input class="form-control" name="name" id="name" placeholder="filter1" value="<?php echo html($_POST['name'])?>">
+								<input class="form-control" name="name" id="name" placeholder="filter1" value="<?php echo html(@$_POST['name'])?>">
 							</div>
 						</div>
 						<div class="form-group">

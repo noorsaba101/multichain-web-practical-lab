@@ -1,0 +1,7 @@
+{
+  "schema_version": 1, "offer_id": "TEST_BAD_BONUS", "user_id": "k269012",
+  "event": "COMPLETED", "status": "COMPLETED", "principal": 1000,
+  "bonus_percent": 50, "maturity_months": 6, "bonus_amount": 400,
+  "final_amount": 1400, "actor_role": "BANK", "source_chain": "GreenAddress",
+  "destination_chain": "GreenAddress"
+}
