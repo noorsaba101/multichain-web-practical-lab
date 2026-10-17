@@ -88,12 +88,12 @@
 			foreach ($listpermissions as $listpermission)
 				$addresspermissions[$listpermission['address']][$listpermission['type']]=true;
 		
-		no_displayed_error_result($getmultibalances, multichain('getmultibalances', array(), array(), 0, true));
+		no_displayed_error_result($getmultibalances, multichain('getmultibalances', '*', '*', 0, true));
 		
 		$labels=multichain_labels();
 	
 		foreach ($addressmine as $address => $ismine) {
-			if (count(@$addresspermissions[$address]))
+			if (!empty($addresspermissions[$address]))
 				$permissions=implode(', ', @array_keys($addresspermissions[$address]));
 			else
 				$permissions='none';

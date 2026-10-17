@@ -3,7 +3,7 @@
 	require_once 'functions.php';
 	
 	$config=read_config();
-	$chain=@$_GET['chain'];
+	$chain=(string)@$_GET['chain'];
 	
 	if (strlen($chain))
 		$name=@$config[$chain]['name'];

@@ -133,14 +133,14 @@
 	
 	function html($string)
 	{
-		return htmlspecialchars($string);
+		return htmlspecialchars((string)$string);
 	}
 	
 	function chain_page_url_html($chain, $page=null, $params=array())
 	{
 		$url='./?chain='.$chain;
 		
-		if (strlen($page))
+		if (strlen((string)$page))
 			$url.='&page='.$page;
 			
 		foreach ($params as $key => $value)
@@ -236,7 +236,7 @@
 	{
 		$label=@$labels[$address];
 		
-		if (strlen($link)) {
+		if (strlen((string)$link)) {
 			$prefix='<a href="'.html($link).'">';
 			$suffix='</a>';
 		} else {

@@ -35,7 +35,7 @@
 		$upload=@$_FILES['upload'];
 		$upload_file=@$upload['tmp_name'];
 
-		if (strlen($upload_file)) {
+		if (strlen((string)$upload_file)) {
 			$upload_size=filesize($upload_file);
 
 			if ($upload_size>$max_upload_size) {
@@ -121,7 +121,7 @@
 					$details[$key]=$value;
 				}
 			
-			if (count(@$detailshistory['@file'])) {
+			if (!empty($detailshistory['@file'])) {
 ?>
 							<tr>
 								<th>File:</th>
