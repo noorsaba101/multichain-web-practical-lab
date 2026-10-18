@@ -1,29 +1,28 @@
-# Bank / student deposit exam scenario: 40 percent only
+# Bank/student deposit walkthrough
 
-Native Windows MultiChain 2.3.3, Python standard library and the existing PHP Web Demo. No new software, Solidity, assets or money transfers.
+Use native Windows CMD from the repository root. Prepare the nodes, streams and private configuration using [Windows setup](../docs/SETUP.md). The helper needs Python's standard library only; the deployed JavaScript runs in MultiChain V8.
 
-**GreenAddress / bank_events** is BANK; **k269012 / user_events** is USER. They are independent ledgers. `bank_filter.js` is the real MultiChain `bank_deposit_rules_40` stream filter, approved only for `bank_events`. The USER chain has no filter. `chain1` and Goffycoin are not used.
+## Business rules and responsibilities
 
-Current rule: **40% only**, maturity six demonstration months. For principal1000, bonus400 and final1400. The immutable old `bank_deposit_rules` (50/60%) is retained on-chain but must be inactive on bank_events. Its source is preserved in `bank_filter_legacy.js`; old DEP001 transactions and evidence are not rewritten. Use a NEW offer ID such as DEP040, not DEP001. A new filter does not amend the financial terms of historical offers.
+- BANK: `GreenAddress/bank_events`. USER: `k269012/user_events`. They are independent ledgers, linked only by the explicit off-chain relay.
+- Current filter: `bank_deposit_rules_40`, active only on `bank_events`. The USER chain has no filter.
+- Principal must be a positive integer no greater than 1,000,000,000. The bonus is **40% only**, and maturity is six demonstration months. Use multiples of 5 for whole-unit bonuses; fractional bonuses are rejected, not rounded.
+- For principal 1,000, bonus = 400 and final amount = 1,400. A different amount must be set in the original bank offer and matched by the USER. Accepted terms are immutable for that offer ID.
+- The filter checks JSON structure, required fields, schema version, offer ID/key, user ID, event/status, role/direction, relay reference shape and arithmetic.
+- The helper verifies actual source transaction references, terms, acceptance history, event ordering and sequential duplicate processing. It runs the timer and transports events; the filter does not sleep, contact the other chain or remember prior events.
+- A direct structurally valid publication can bypass the helper's historical workflow. This is a single-operator practical, not a production banking contract or distributed exactly-once protocol. No fiat or token transfer is performed.
 
-The helper explicitly relays records, checks original terms/provenance and prior events, simulates time, and waits for confirmations. The V8 filter checks current-item structure/roles/arithmetic. It cannot read the other chain, prove that its JSON source assertions are genuine, remember historical acceptance, or sleep. An operator can bypass helper ordering by directly publishing a structurally valid record: this is an honest single-operator proof of concept, not a production banking contract or distributed exactly-once protocol.
+| Event | Required status | Actor/source -> destination |
+| --- | --- | --- |
+| DEPOSIT_OFFERED | OFFERED | BANK / GreenAddress -> k269012 |
+| DEPOSIT_ACCEPTED | ACCEPTED | USER / k269012 -> GreenAddress |
+| MATURITY_REACHED | BONUS_READY | BANK / GreenAddress -> k269012 |
+| BONUS_ACCEPTED | BONUS_ACCEPTED | USER / k269012 -> GreenAddress |
+| COMPLETED | COMPLETED | BANK / GreenAddress -> GreenAddress |
 
-Full preparation notes and screenshot checkpoints: `..\PREP.md`. Preserve existing data; do not rerun chain-creation commands for chains that already exist.
+## 1. Test, deploy and activate the filter
 
-## Startup (CMD, separate windows)
-
-All commands below run from the NEW location `C:\D\PhD\1\Blockchain\multichain-practical\multichain-web-demo`:
-
-```cmd
-..\multichain\multichaind.exe GreenAddress
-..\multichain\multichaind.exe k269012
-```
-
-Run each in its own terminal, not sequentially in one blocked terminal. Keep the already-working PHP server running, or start it from this Web Demo directory using `php -S 127.0.0.1:8000`. Check `getinfo` before launching duplicate nodes. Windows does not implement `-daemon` as Linux does. Graceful stop: `..\multichain\multichain-cli.exe GreenAddress stop` (or `k269012 stop`). Never stop/reconfigure chain1 for this scenario.
-
-## Filter lifecycle (one command at a time)
-
-From the Web Demo root, stop on any unexpected error:
+Run each command separately and stop on unexpected errors:
 
 ```cmd
 python deposit_scenario\filter_tools.py compile
@@ -32,90 +31,124 @@ python deposit_scenario\filter_tools.py create
 python deposit_scenario\filter_tools.py approve
 python deposit_scenario\filter_tools.py retire-legacy
 python deposit_scenario\filter_tools.py status
+```
+
+These commands wrap real `teststreamfilter`, `createrawsendfrom ... sign`, `create streamfilter`, `approvefrom`, `liststreamfilters` and `liststreams` calls. JSON-RPC avoids fragile Windows command-line JSON escaping. Credentials are read privately from the native node configurations, and exact chain names/ports are checked. The helper refuses `chain1`.
+
+Compilation checks syntax. The six native tests execute signed candidate transactions without broadcasting. Creation requires passing tests for the exact source hash. Approval applies only to `bank_events`.
+
+For an earlier installation, the new filter is approved **before** the known old `bank_deposit_rules` is disapproved. The archive `bank_filter_legacy.js` is retained to verify that exact old code before retirement. This avoids an unfiltered interval; while both incompatible filters remain active, new 40% publications are blocked. Unknown filters are never automatically removed. On a fresh installation the retirement command is a no-op. Repeated successful lifecycle steps do not duplicate creation/approval transactions.
+
+Verify actual activation, not just `compiled: true`:
+
+```cmd
+multichain-cli.exe GreenAddress liststreams bank_events true
+multichain-cli.exe GreenAddress liststreamfilters bank_deposit_rules_40 true
+multichain-cli.exe GreenAddress getfiltercode bank_deposit_rules_40
+multichain-cli.exe k269012 liststreamfilters
+```
+
+Expected: only `bank_deposit_rules_40` in the BANK stream's `filters`; no USER filter. The old filter may remain listed as created but inactive. In the Web Demo use **Filters: Stream**, not Transaction. On its approval page, do not approve the filter for `root`.
+
+## 2. Demonstrate valid and invalid records
+
+Open [GreenAddress Stream Filters](http://127.0.0.1:8000/?chain=greenaddress&page=streamfilter). Paste the complete current `bank_filter.js` into **Filter code**; the default sample is not the bank rule. Choose the local BANK publisher, `bank_events`, and **JSON (enter JSON below)**. Leave off-chain unchecked.
+
+The unlabelled large textarea directly below the data-format dropdown is the JSON box. Set **Test publish item keys** to the JSON's exact `offer_id`, optionally followed by its event on a separate line. Use plain text, not quotes or a JSON array.
+
+| JSON fixture | Required offer key | Expected result |
+| --- | --- | --- |
+| `examples/valid.json` | TEST40_VALID | Allowed |
+| `examples/invalid_bonus.json` | TEST40_BAD_BONUS | Incorrect bonus amount |
+| `examples/invalid_final.json` | TEST40_BAD_FINAL | Incorrect final amount |
+| `examples/missing_field.json` | TEST40_MISSING | Missing required field: principal |
+
+Click **Test Publishing Item with This Filter**, immediately below the JSON box. Test one case at a time, keeping the code unchanged. If the offer ID changes, update its key too. The filter returns the first failed rule; a key mismatch can mask the intended arithmetic error. Starting from valid JSON, changing the percentage to 50 or 60 must return `bonus_percent must be 40`.
+
+These UI tests do not broadcast records and test the code in the textbox, not automatically the deployed code. For actual active-filter enforcement:
+
+```cmd
 python deposit_scenario\filter_tools.py publish-tests
 ```
 
-These are transparent wrappers for `teststreamfilter`, `createrawsendfrom ... sign`, `create streamfilter`, `approvefrom`, `liststreamfilters`/`liststreams`, and `publishfrom`. JSON and JavaScript are transported directly via JSON-RPC to avoid fragile Windows CLI quoting. Passwords are read from `%APPDATA%\MultiChain\<chain>\multichain.conf`, never printed. All endpoints are localhost, exact chain names/ports are checked, and the client refuses chain1.
+This publishes one isolated valid `TEST40_VALID` fixture and attempts five invalid cases. Invalid attempts must be rejected by the real API with zero records for their keys. The valid fixture is not evidence of an accepted deposit workflow. Reports are saved separately under ignored `deposit_scenario/results/bank_deposit_rules_40/`. A dry-run result must not be described as a broadcast transaction.
 
-Upgrade order matters: approve the new 40% filter FIRST, then `retire-legacy` disapproves only the known old filter for bank_events after comparing its archived code. There is no unfiltered interval. While both incompatible filters are active, no 40% workflow should be published; helper commands fail closed. Unknown filters are never automatically removed. Repeated create/approve/retire steps do not duplicate transactions. Capture the final listing showing new filter active on bank_events and old filter on no streams.
+## 3. Create an offer and obtain initial USER acceptance
 
-Native CLI examples (from Web Demo root):
+The verified historical example is **DEP040**. For another run, choose an unused offer ID; commands below use **DEP041** as an example. If it already exists, choose another ID and use it consistently. Do not delete history or recreate chains.
 
-```cmd
-..\multichain\multichain-cli.exe GreenAddress getinfo
-..\multichain\multichain-cli.exe GreenAddress liststreamfilters bank_deposit_rules_40 true
-..\multichain\multichain-cli.exe GreenAddress getfiltercode bank_deposit_rules_40
-..\multichain\multichain-cli.exe GreenAddress liststreams bank_events true
-..\multichain\multichain-cli.exe k269012 liststreamfilters
-..\multichain\multichain-cli.exe k269012 liststreams user_events true
-```
-
-`TEST40_VALID` is a separate synthetic validation fixture, not a real deposit completion. Invalid bonus/final/missing-field and old50/60% cases must return filter rejection and have zero items. New filter evidence is recorded in `results/bank_deposit_rules_40/`; original filter evidence is preserved. Do not mistake `compiled:true` for active: verify `liststreams bank_events true` includes ONLY `bank_deposit_rules_40` in `filters`.
-
-## DEP040 workflow (explicit steps; no auto-acceptance)
-
-Already completed steps are not repeated. `status` is always safe. Conflicting duplicates and duplicate BANK events fail closed. Identical USER acceptances are collapsed logically to the first record in chain order, and every ignored replay txid remains in the audit output/history. Use a NEW examiner-approved offer ID for another run; do not delete history.
+Run one command at a time. Do not paste the entire walkthrough into a terminal containing interactive prompts.
 
 ```cmd
-python deposit_scenario\demo.py offer DEP040 --principal 1000
-python deposit_scenario\demo.py relay DEP040 --event DEPOSIT_OFFERED
-python deposit_scenario\demo.py accept-deposit DEP040
-python deposit_scenario\demo.py relay DEP040 --event DEPOSIT_ACCEPTED
-python deposit_scenario\demo.py mature DEP040
-python deposit_scenario\demo.py relay DEP040 --event MATURITY_REACHED
-python deposit_scenario\demo.py accept-bonus DEP040
-python deposit_scenario\demo.py relay DEP040 --event BONUS_ACCEPTED
-python deposit_scenario\demo.py complete DEP040
-python deposit_scenario\demo.py verify DEP040
+python deposit_scenario\demo.py offer DEP041 --principal 1000
+python deposit_scenario\demo.py relay DEP041 --event DEPOSIT_OFFERED
 ```
 
-For initial acceptance, the USER enters `1000` at the amount prompt, then explicitly types `ACCEPT`. Alternatively use `accept-deposit DEP040 --amount 1000` and type ACCEPT; do not use BOTH routes. The user's amount must match the original bank offer. To try another amount, change the bank's `--principal` and enter that same amount on USER under a new offer ID. Valid whole-unit principal values must be multiples of5 so the 40% bonus is an integer; e.g.2500 -> bonus1000 -> final3500.
-
-At each `accept-*` prompt, the user must review the printed terms and type `ACCEPT`. Any other input cancels with no acceptance write. A maturity event requires banked initial acceptance. Completion requires a banked bonus acceptance whose referenced USER transaction/content is checked against the actual USER chain. The six-second timer prints Month1..Month6 and Maturity reached, and produces a timer evidence JSON. This is **application simulation**, not six months of blockchain time. Maturity makes the bonus AVAILABLE; final credit is not recorded until the user accepts that bonus and the acceptance is relayed back to BANK.
-
-### Use the Web Demo instead for the two USER acceptances
-
-Do EITHER GUI acceptance OR helper acceptance, never both for the same event.
-
-1. Open `http://127.0.0.1:8000/?chain=k269012&page=publish`; heading must say `k269012 USER`.
-2. To stream: `user_events`; keep **Publish as off-chain item unchecked** (the event data should be on-chain; the *relay program* is off-chain).
-3. Initial acceptance: keys are `DEP040` and `DEPOSIT_ACCEPTED`, one per line. Generate the correct JSON with:
-
-   ```cmd
-   python deposit_scenario\demo.py acceptance-json DEP040
-   ```
-
-4. Paste output into **Or JSON**, leave upload and Or text empty. Read terms, click **Publish Item ONCE**, record txid and screenshot. This deliberate publish is the user's acceptance.
-5. For bonus acceptance after receiving the maturity notification, use keys `DEP040` and `BONUS_ACCEPTED`; generate JSON with:
-
-   ```cmd
-   python deposit_scenario\demo.py acceptance-json DEP040 --bonus
-   ```
-
-6. Relay the acceptance using the corresponding `relay` command. The helper adds the source txid/output/hash reference on the destination ledger; the GUI user should not invent it.
-
-Do not use the Web Demo's **Accept Offer** menu: that is for asset exchanges, not this deposit scenario. Do not refresh a successful POST page; navigate to Node/View Streams with a new GET instead.
-
-Prefilled fields belong to ONE particular browser tab; they do not transfer to another browser/tab opened at the same URL. If your form is blank, do not click Publish Item. Generate/copy the JSON and enter both keys yourself, or use only the explicit CMD `accept-*` command and type ACCEPT. During rehearsal, an empty USER text item was accidentally published. It is preserved outside the DEP001 key, is not an acceptance, and is excluded from offer processing. The USER chain intentionally has no filter; the BANK filter would reject a non-JSON record.
-
-## Inspect and reproduce
+After each command, wait for the confirmed receipt. Then ask the USER to accept:
 
 ```cmd
-python deposit_scenario\demo.py status DEP040
-..\multichain\multichain-cli.exe GreenAddress liststreamkeyitems bank_events DEP040
-..\multichain\multichain-cli.exe k269012 liststreamkeyitems user_events DEP040
+python deposit_scenario\demo.py accept-deposit DEP041 --amount 1000
 ```
 
-These native listing commands default to ten items. The normal workflow has five BANK and four logical USER events; duplicate USER consent publications may add physical audit records. For larger histories, use explicit count/start. Verification queries up to10000 and refuses a truncated result. `demo.py verify` checks ordered logical events, original terms, hashes/source outputs, both acceptances, final values and bank-only filter activation. It reports identical consent replays separately. `complete` rerun is a no-op if the exact final event already exists. Direct concurrent/manual duplicate writes cannot be prevented atomically by this single-operator helper; conflicting duplicates stop it.
-
-The NEW final bank-side record is principal1000 + bonus400 = final1400, statusCOMPLETED. Both50% and60% are now rejected. Historical DEP001 remains a50% record, not a new40% offer; consult its preserved verification JSON/raw transaction for the old result rather than rerunning its workflow under a new rule. Principal is a recorded demonstration deposit, not proof of fiat receipt. Use whole integer units; combinations yielding fractional bonuses are rejected rather than silently rounded. The USER chain records offer/acceptance/notification/bonus-acceptance, not a cross-chain token balance.
-
-## Local tests and outputs
+Review principal 1,000, bonus 400, final 1,400, then type **ACCEPT** at the prompt. The `--amount` option supplies the deposit amount directly. If omitted, enter `1000` at the amount prompt before typing ACCEPT at the separate acceptance prompt. Blank/non-integer or mismatched amounts write no acceptance, and later steps correctly stop with a missing-event error. Any response other than ACCEPT cancels consent.
 
 ```cmd
-python -m unittest discover -s deposit_scenario\tests -v
-node deposit_scenario\tests\test_filter.cjs
-python -m compileall -q deposit_scenario
+python deposit_scenario\demo.py relay DEP041 --event DEPOSIT_ACCEPTED
 ```
 
-Node is optional for local unit tests only; the actual filter runs in MultiChain V8, not Node. Python helper needs no pip packages. Evidence files under gitignored `results/` include filter compilation, native V8 tests, creation/approval/status, real publish rejections, `workflow.jsonl`, `<offer>_timer.json`, `<offer>_verification.json`. They contain public demo event data, no RPC credentials. No automated file logs can substitute for the examiner's required screenshots.
+This copies the USER acceptance to the BANK stream for filter validation. The helper verifies the actual source notice and adds its transaction/output/hash reference. It does not make the two chains read each other directly.
+
+## 4. Simulate maturity and obtain bonus acceptance
+
+```cmd
+python deposit_scenario\demo.py mature DEP041
+```
+
+The timer displays **Month 1** through **Month 6**, then **Maturity reached**. One second represents one month only in this application simulation. The BANK records `MATURITY_REACHED / BONUS_READY`, not final credit. Wait afterward for transaction confirmation.
+
+```cmd
+python deposit_scenario\demo.py relay DEP041 --event MATURITY_REACHED
+python deposit_scenario\demo.py accept-bonus DEP041
+```
+
+The first command sends the notification to the USER stream. Run the second only after that succeeds, review the available 400 bonus, and explicitly type **ACCEPT**. No second deposit is requested.
+
+## 5. Complete and verify
+
+```cmd
+python deposit_scenario\demo.py relay DEP041 --event BONUS_ACCEPTED
+python deposit_scenario\demo.py complete DEP041
+python deposit_scenario\demo.py verify DEP041
+```
+
+Run separately, waiting for each confirmation. Completion requires both banked acceptances, valid source references, accepted original terms and the maturity record. Expected final account record: principal 1,000, bonus 400, final 1,400, status COMPLETED. Verification should report `verified: true`, five BANK events, four logical USER events and no duplicates for a clean run.
+
+Inspect safely using:
+
+```cmd
+python deposit_scenario\demo.py status DEP041
+multichain-cli.exe GreenAddress liststreamkeyitems bank_events DEP041
+multichain-cli.exe k269012 liststreamkeyitems user_events DEP041
+```
+
+In the Web Demo select the correct chain, **View Streams**, its event stream, then the offer-ID key. Default native listing commands return up to ten items; use explicit count/start for larger histories. The helper checks up to 10,000 and refuses truncated results.
+
+Already-recorded maturity and identical completion steps are no-ops. Conflicting duplicates stop processing. Identical repeated USER acceptances are retained on-chain but processed once and reported as replays; they are not silently deleted. This is sequential single-operator protection, not an atomic guarantee against concurrent/direct writers.
+
+## Optional: USER acceptance through the Web Demo
+
+Use **either** the CLI acceptance **or** the GUI for each event, never both. On the USER **Publish** page select `user_events`, leave off-chain unchecked, and generate the exact payload using:
+
+```cmd
+python deposit_scenario\demo.py acceptance-json DEP041
+```
+
+For initial acceptance, keys are `DEP041` and `DEPOSIT_ACCEPTED`, one per line. Paste the generated JSON under **Or JSON**, leave text/upload empty, review terms and click **Publish Item** once. For bonus acceptance after notification, generate using `acceptance-json DEP041 --bonus` and use the `BONUS_ACCEPTED` event key instead. Relay the resulting acceptance with the corresponding command above.
+
+The helper refuses to prepare an acceptance that already exists. Prefilled fields belong to one browser tab only. A blank form is not an acceptance; do not submit it. Do not refresh a successful POST page. The Web Demo's **Accept Offer** menu is for asset exchange, not this scenario.
+
+## Outputs and recovery
+
+Generated files remain ignored under `deposit_scenario/results/`: filter reports in `bank_deposit_rules_40/`, `<offer>_timer.json`, `<offer>_verification.json`, and appended publication receipts in `workflow.jsonl`. A new clone does not include the original machine's private configuration or these generated reports. See [observed verification results](../docs/VERIFICATION.md).
+
+If interrupted after a transaction ID is printed, Ctrl+C does not undo that transaction. Inspect status/confirmations and resume from the first missing step. Do not press Ctrl+C simply because confirmation is taking time, or rerun every command after an earlier failure. An interrupted publication can exist on-chain before its local receipt is written; the chains and verifier, not a complete-looking log file alone, establish the event history.

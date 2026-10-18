@@ -1,1 +1,14 @@
 /config.txt
+
+# Personal preparation notes are not part of the submission.
+/PREP.md
+/prep_cmds_info.md
+/.local-notes/
+
+# Local runtime files and credentials.
+/.venv/
+__pycache__/
+*.py[cod]
+*.log
+multichain.conf
+wallet.dat

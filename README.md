@@ -1,113 +1,108 @@
-MultiChain Web Demo
-===================
+# MultiChain Web Practical Lab
 
-MultiChain Web Demo is a simple web interface for [MultiChain](http://www.multichain.com/) blockchains, written in PHP.
+A native Windows blockchain practical built on the official [MultiChain Web Demo](https://github.com/MultiChain/multichain-web-demo). This fork retains the PHP interface, adds PHP 8 compatibility fixes, and implements an independently relayed bank/student deposit demonstration using a **real MultiChain Stream Filter**.
 
-https://github.com/MultiChain/multichain-web-demo
+## Practical scope
 
-    Copyright(C) Coin Sciences Ltd.
-    License: GNU Affero General Public License, see the file LICENSE.txt.
+| Exercise | Implementation |
+| --- | --- |
+| Connect the Web Demo to a node | Localhost JSON-RPC; inspect chain identity, addresses and status |
+| Issue and transfer an asset | Web Demo issuance and transfer of Goffycoin on `chain1` |
+| Bank/student scenario | Two independent chains, separate event streams, explicit acceptances and an off-chain relay |
+| Bank-side business rules | `filterstreamitem()` validates bank stream items through `getfilterstreamitem()` |
+| Maturity and bonus | Six-second application timer representing six months; **40% only** |
+| Verification | Source-transaction references, arithmetic, event ordering and duplicate checks |
 
+This is an educational demonstration, not a banking service. The deposit balance is an **account/event record**, not evidence of a fiat deposit or an asset transfer.
 
-Welcome to MultiChain Web Demo
-==============================
+## Architecture
 
-This software uses PHP to provide a web front-end for a [MultiChain](http://www.multichain.com/) blockchain node.
+| Chain | Role | Stream | RPC port | P2P port |
+| --- | --- | --- | --- | --- |
+| `chain1` | Original asset practical | Not used by the deposit helper | 6458 in the tested setup | 6459 in the tested setup |
+| `GreenAddress` | BANK | `bank_events` | 6468 | 6469 |
+| `k269012` | USER / student | `user_events` | 6478 | 6479 |
 
-It currently supports the following features:
+`GreenAddress` and `k269012` are independent blockchains, not two nodes of one chain. Python explicitly copies selected event data between them and records source transaction/output/hash references. Neither chain directly reads the other's stream, and no asset automatically crosses between them.
 
-* Viewing the node's overall status.
-* Creating addresses and giving them real names (names are visible to all nodes).
-* Changing global permissions for addresses.
-* Issuing assets, including custom fields and uploading a file.
-* Updating assets, including issuing more units and updating custom fields and file.
-* Viewing issued assets, including the full history of fields and files.
-* Sending assets from one address to another.
-* Creating, decoding and accepting offers for exchanges of assets.
-* Creating streams.
-* Publishing items to streams, as JSON or text or an uploaded file.
-* Viewing stream items, including listing by key or publisher and downloading files.
-* Writing, testing and approving Smart Filters (both transaction and stream filters).
+Only `GreenAddress/bank_events` has the active filter **`bank_deposit_rules_40`**. The USER chain has no Smart Filter.
 
-The web demo does not yet support the following important functionality in the MultiChain API:
+## Deposit rule and flow
 
-* Managing per-asset and per-stream permissions.
-* Multisignature addresses and transactions.
-* Adding metadata (or stream items) to permissions or asset transactions.
-* Viewing an addresses' transactions.
-* Subscribing to assets and viewing their transactions.
-* Viewing a list of keys or publishers in a stream.
-* Peer-to-peer node management.
-* Message signing and verification.
-* Blockchain upgrading.
-* Working with the binary cache.
+```text
+BANK offer -> relay to USER -> USER accepts deposit -> relay to BANK
+    -> Month 1 ... Month 6 -> BANK records maturity -> relay notification to USER
+    -> USER accepts bonus -> relay to BANK -> BANK records COMPLETED
+```
 
-The MultiChain Web Demo is still under development, so please [contact us](http://www.multichain.com/contact-us/) if any of these things are crucial for your needs.
+For principal **1,000**:
 
+```text
+bonus = 1000 * 40 / 100 = 400
+final = 1000 + 400 = 1400
+```
 
-System Requirements
--------------------
+The maturity event makes the bonus available. Completion requires a second, explicit USER acceptance; it is not credited merely because the timer finishes. **One second represents one month only inside the helper's demonstration timer**, not inside MultiChain or the filter.
 
-* A computer running web server software such as Apache.
-* PHP 5.x or later with the `curl` and `JSON` extensions.
-* MultiChain 1.0 alpha 26 or later, including MultiChain 2.x.
+The former 50/60% filter is archived for upgrade/history purposes and must not remain active alongside the 40% filter. Historical offers are not rewritten to new terms.
 
+## Run the practical
 
-Create and launch a MultiChain Blockchain
------------------------------------------
+Tested with MultiChain Community **2.3.3**, PHP **8.4.25** with cURL/JSON, and Python **3.11** on native Windows. Python uses only its standard library. Node.js is optional for local JavaScript unit tests; the deployed filter runs in MultiChain's V8 engine.
 
-If you do not yet have a chain to work with, [Download MultiChain](http://www.multichain.com/download-install/) to install MultiChain and create a chain named `chain1` as follows:
+1. Follow [Windows setup](docs/SETUP.md) to reuse or prepare the nodes, streams and private Web Demo configuration.
+2. Run the [filter lifecycle and deposit walkthrough](deposit_scenario/README.md), one command at a time.
+3. Review the [verification record and test results](docs/VERIFICATION.md).
 
-    multichain-util create chain1
-    multichaind chain1 -daemon
-    
-If your web server is running on the same computer as `multichaind`, you can skip the rest of this section. Otherwise:
+Run commands from this repository's root. An existing PHP server may still serve a different clone; confirm its document root before reviewing changes. Do not start a second server on the same port.
 
-    multichain-cli chain1 stop
+### Asset practical
 
-Then add this to `~/.multichain/chain1/multichain.conf`:
+For a fresh exercise, perform these actions manually in the Web Demo:
 
-    rpcallowip=[IP address of your web server]
-  
-Then start MultiChain again:
-  
-    multichaind chain1 -daemon
+1. On **Node**, verify the actual chain is `chain1` and node information loads successfully.
+2. Identify sender A and receiver B; create a new address only if another is needed. Two wallet addresses do not mean two nodes.
+3. On **Permissions**, verify A can issue/send/receive and B can receive. Grant only missing permissions through an authorized administrator.
+4. On **Issue Asset**, issue **Goffycoin**, quantity **1,000**, units **1**, from A to A. Record the successful transaction ID and wait for confirmation.
+5. On **Send**, send **100 Goffycoin** from A to B once. Do not refresh/resubmit the successful POST page.
+6. Inspect the transaction and per-address asset balances. In this fresh example A has 900 and B has 100; report actual balances if the asset has other history. The corresponding RPC operations are `issuefrom`, `sendassetfrom` and `getaddressbalances`.
 
+These are instructions for a **fresh exercise**, not permission to reissue an existing asset. If Goffycoin already exists, inspect its existing records/balances instead. The deposit scenario does not reuse `chain1` or Goffycoin. The UI's **Create Offer / Accept** pages are asset-exchange features, not the deposit acceptance mechanism.
 
+## Validation
 
-Configure the Web Demo
-----------------------
+Local unit tests require no running chain and do not publish transactions:
 
-_This section assumes your blockchain is named `chain1` and you are running the node and web server on a Unix variant such as Linux. If not, please substitute accordingly._
+```cmd
+python -B -m unittest discover -s deposit_scenario\tests -v
+node deposit_scenario\tests\test_filter.cjs
+```
 
-Make your life easy for the next step by running these on the node's server:
+The verified revision passes **34 Python tests** and **21 JavaScript tests**. Native filter tests and real publish enforcement are separate steps documented in the walkthrough; only the latter broadcasts an isolated valid test fixture.
 
-    cat ~/.multichain/chain1/multichain.conf
-    grep rpc-port ~/.multichain/chain1/params.dat
-    
-In the web demo directory, copy the `config-example.txt` file to `config.txt`:
+The completed local **DEP040** demonstration verified principal **1,000**, bonus **400**, final **1,400**, five BANK events, four USER events and no duplicate events or acceptance replays. Public transaction references and limitations are listed in [verification](docs/VERIFICATION.md). They identify a local development chain, not a public block explorer.
 
-	cp config-example.txt config.txt
-  
-In the demo website directory, enter chain details in `config.txt` e.g.:
+## Repository contents
 
-    default.name=Default                # name to display in the web interface
-    default.rpchost=127.0.0.1           # IP address or domain of MultiChain node
-    default.rpcsecure=0                 # set to 1 to access RPC via https (e.g. for MultiChain on Azure)
-    default.rpcport=12345               # usually default-rpc-port from params.dat
-    default.rpcuser=multichainrpc       # username for RPC from multichain.conf
-    default.rpcpassword=mnBh8aHp4mun... # password for RPC from multichain.conf
+- Root PHP/CSS files: inherited Web Demo and compatibility fixes.
+- `deposit_scenario/`: relay, amount/acceptance logic, timer, filter lifecycle, examples and tests.
+- `docs/SETUP.md`: native Windows setup and safe local operation.
+- `docs/VERIFICATION.md`: observed results, test outcomes and public transaction references.
+- `docs/UPSTREAM_README.md`: preserved original Web Demo README; reference only, not the Windows setup guide.
+- `config-example.txt`: credential-free configuration template.
+- `LICENSE.txt`: inherited GNU Affero General Public License, version 3.
 
-Multiple chains are supported by the web demo by copying the same section again but with different prefixes before the period, for example:
+`config.txt`, generated results, wallet/configuration secrets and personal preparation notes are excluded from the submission tree or ignored. Node data stays outside Git under `%APPDATA%\MultiChain`.
 
-	another.name=...
-	another.rpchost=...
-	...
+## Security and limitations
 
-**Note that the `config.txt` file is readable by users of your web demo installation, and contains your MultiChain API password, so you should never use this basic setup for a production system.**
+- Bind PHP to **127.0.0.1** and keep RPC local. This basic Web Demo has no production authentication layer; `config.txt` is plaintext and can be served by a basic web server. Do not expose this setup publicly.
+- Never publish RPC passwords, wallet files or private keys. The fork intentionally does not include the original machine's private configuration or generated results.
+- The filter validates the current item's fields and arithmetic. Relay reference fields describe a source but do not themselves prove external-chain truth; the helper checks them against the source node.
+- Ordering, acceptance history and sequential duplicate handling belong to the helper. Direct publication can bypass that historical workflow; this is not a stateful banking contract or distributed exactly-once protocol.
+- Stream-filter publish/retrieval checks should not be described as Ethereum execution or cross-chain consensus.
+- A transaction ID means submission, not rollback protection. Wait for confirmation. If interrupted after submission, inspect status before retrying; do not recreate the offer or delete history.
 
+## Attribution
 
-Launch the Web Demo
--------------------
-
-No additional configuration or setup is required. Based on where you installed the web demo, open the appropriate address in your web browser, and you are ready to go!
+Based on **MultiChain Web Demo**, Copyright (C) Coin Sciences Ltd. The original upstream README is preserved in [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md), and [LICENSE.txt](LICENSE.txt) remains unchanged. This fork adds practical-specific Python/JavaScript helpers, tests, documentation and PHP compatibility fixes; it does not claim authorship of the upstream interface.
