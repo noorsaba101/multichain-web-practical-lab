@@ -103,6 +103,15 @@ The completed local **DEP040** demonstration verified principal **1,000**, bonus
 - Stream-filter publish/retrieval checks should not be described as Ethereum execution or cross-chain consensus.
 - A transaction ID means submission, not rollback protection. Wait for confirmation. If interrupted after submission, inspect status before retrying; do not recreate the offer or delete history.
 
-## Attribution
+## Attribution and license
 
-Based on **MultiChain Web Demo**, Copyright (C) Coin Sciences Ltd. The original upstream README is preserved in [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md), and [LICENSE.txt](LICENSE.txt) remains unchanged. This fork adds practical-specific Python/JavaScript helpers, tests, documentation and PHP compatibility fixes; it does not claim authorship of the upstream interface.
+**Upstream:** [MultiChain Web Demo](https://github.com/MultiChain/multichain-web-demo), Copyright (C) Coin Sciences Ltd. The original interface and its attribution are retained, and the original README is preserved in [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md).
+
+**Practical extensions:** Developed by [Noor us Saba (noorsaba101)](https://github.com/noorsaba101) for the MultiChain practical, student ID **k269012**. These contributions include:
+
+- PHP 8.4 compatibility and balance-display fixes.
+- The independent BANK/USER deposit workflow, explicit off-chain relay, user acceptances and six-month demonstration timer.
+- The bank-only Stream Filter enforcing the 40% bonus rule and validating event fields and arithmetic.
+- Automated tests, native Windows setup instructions and verification documentation.
+
+This fork retains the upstream **GNU Affero General Public License, version 3**, in the unchanged root [LICENSE.txt](LICENSE.txt). Credit for the practical extensions does not replace the upstream authorship or license.
